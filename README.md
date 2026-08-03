@@ -71,6 +71,38 @@ git push -u origin main
 
 ---
 
+---
+
+## 部署到 Hugging Face Spaces（免信用卡 · 推荐）
+
+如果你不想绑信用卡，用 **Hugging Face Spaces（Docker 模式）** 是最省事的选择：免费、用 GitHub 直接登录、不需要信用卡，而且本仓库已带 `Dockerfile`，**代码一行都不用改**。数据库继续用你建好的 Neon（或 Supabase）。
+
+### 步骤
+
+1. 打开 https://huggingface.co → 右上角 **Sign in** → 选 **Continue with GitHub**（用你的 `carol0662` 账号登录，无需信用卡）。
+2. 右上角头像 → **New** → **Space**。
+3. 填写：
+   - **Space name**：`travel-account-online`（随便起，会拼进网址）
+   - **SDK**：选 **Docker**（重要！不是 Gradio）
+   - **Visibility**：**Public**（同伴才能用邀请链接进来）
+   - 其他默认 → 点 **Create Space**。
+4. 创建后进入 Space 页面 → 顶部 **Settings** → **Variables and secrets**（或 **Repository secrets**）：
+   - 新增一个 **Secret / Variable**：
+     - Name：`DATABASE_URL`
+     - Value：粘贴你从 Neon 复制的连接串（带 `?sslmode=require` 的那串）
+   - Save。
+5. 回到 Space 主页 → **Files** 标签 → 点 **"…" 或 Git clone / 上传**，把本仓库的文件传上去（最简单：用 GitHub 关联，或在 Files 里一个个上传；也可以本地 `git clone` 这个 Space 后把代码 push 上去）。
+   - 仓库需要包含：`server.js`、`db.js`、`package.json`、`Dockerfile`、`.dockerignore`、`public/`。
+6. HF 会自动按 `Dockerfile` 构建并启动，启动完成后页面顶部的状态变绿，地址形如：
+   ```
+   https://<你的用户名>-travel-account-online.hf.space
+   ```
+   手机任意网络打开这个链接即可使用。
+
+> **免费说明**：HF Spaces 免费实例在长时间无访问后会休眠，下次打开会自动唤醒（冷启动约几秒到十几秒），数据存在 Neon 不会丢。无需信用卡。
+
+---
+
 ## API 概览
 
 | 方法 | 路径 | 说明 |
@@ -94,6 +126,8 @@ travel-account-online/
 ├── server.js        # 后端服务 + 路由 + 结算算法
 ├── db.js            # 统一数据层（Postgres / SQLite 自动切换）
 ├── package.json     # 依赖与启动脚本
+├── Dockerfile       # Hugging Face Spaces 容器部署（免信用卡）
+├── .dockerignore    # 容器构建排除项
 ├── render.yaml      # Render 部署配置（含 Postgres）
 ├── .env.example     # 环境变量说明
 ├── public/
