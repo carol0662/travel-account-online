@@ -24,11 +24,13 @@ async function init() {
   if (url) {
     mode = 'postgres';
     const { Pool } = require('pg');
+    // 托管 Postgres（Render / Neon / Supabase / RDS 等）强制走 SSL。
+    // 只要连接串带 sslmode=require 或命中已知云主机，就开启 SSL。
+    const sslEnabled = /sslmode=require/i.test(url) ||
+      /render\.com|amazonaws\.com|rds|supabase|neon/i.test(url);
     pgPool = new Pool({
       connectionString: url,
-      ssl: /render\.com|amazonaws\.com|rds|supabase/i.test(url)
-        ? { rejectUnauthorized: false }
-        : false,
+      ssl: sslEnabled ? { rejectUnauthorized: false } : false,
       max: 10
     });
     await pgPool.query('SELECT 1');
