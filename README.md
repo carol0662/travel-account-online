@@ -2,7 +2,9 @@
 
 多人一起旅行时，用手机记录团队共同开销，行程结束后自动算出每个人应收 / 应付，并生成最小转账清单。
 
-> 本版本是**真正的联网共享版**：数据存在服务端数据库，多人跨设备一起记同一笔账；云端部署使用 **Postgres** 持久化，长期不丢。
+> 本版本是**真正的联网共享版**：数据存在服务端数据库，多人跨设备一起记同一笔账；支持两种后端：
+> - **Cloudflare Workers + D1（推荐）**：国内可访问、永久免费、无需信用卡，数据长期保存 → 见「部署到 Cloudflare」
+> - **Node + Postgres（Render / Neon / Supabase）**：适合已有 Postgres 的场景 → 见「部署到 Render」
 
 ---
 
@@ -22,10 +24,11 @@
 
 - 前端：HTML + CSS + JS（移动端优先单页应用，大按钮、清晰反馈）
 - 后端：Node.js 内置 `http`（零 Web 框架）
-- 数据库：**Postgres（部署）/ SQLite（本地开发）自动切换**
-  - 有 `DATABASE_URL` → 用 Postgres（`pg` 驱动），数据持久化在托管数据库
-  - 无 `DATABASE_URL` → 用 Node 内置 SQLite，零第三方依赖，方便本地开发
-- 占位符统一用 `?`，Postgres 模式内部转换为 `$1, $2 …`，业务代码无需关心后端差异
+- 数据库：三后端可切换
+  - **Cloudflare D1（部署推荐）**：`worker.js` + `db-d1.js`，国内可访问、免费不绑卡
+  - **Postgres（Render / Neon / Supabase）**：`server.js` + `db.js`，有 `DATABASE_URL` 时启用
+  - **SQLite（本地开发）**：`server.js` + `db.js`，无 `DATABASE_URL` 时用 Node 内置 SQLite，零依赖
+- 占位符统一用 `?`：Postgres 模式内部转为 `$1, $2 …`，D1 / SQLite 直接使用，业务代码无需关心后端差异
 
 ---
 
@@ -55,7 +58,60 @@ git push -u origin main
 
 ---
 
-## 部署到 Render（含 Postgres，长期稳定）
+## 部署到 Cloudflare（推荐：国内可访问 + 免费 + 不绑卡）
+
+Cloudflare Workers + D1 数据库：**国内网络可访问、永久免费额度、注册无需信用卡**，数据存在 D1（SQLite）长期不丢。本仓库已带 `worker.js` / `db-d1.js` / `wrangler.toml`，前端一行不改。
+
+### 准备
+
+```bash
+# 1) 安装 wrangler（Cloudflare 官方部署工具，需 Node ≥ 18）
+npm install -g wrangler
+
+# 2) 登录 Cloudflare（浏览器授权；若登录失败可用 API Token：wrangler login --api-token）
+wrangler login
+```
+
+### 创建 D1 数据库
+
+```bash
+wrangler d1 create travel-db
+```
+
+命令会输出一段配置，其中有一行 `database_id = "...."`。**复制这个 id**，粘贴到本仓库 `wrangler.toml` 里替换 `REPLACE_WITH_YOUR_D1_ID`：
+
+```toml
+[[d1_databases]]
+binding = "DB"
+database_name = "travel-db"
+database_id = "你复制的 id"
+```
+
+### 部署
+
+```bash
+wrangler deploy
+```
+
+部署完成后会得到地址，形如：
+
+```
+https://travel-account-online.<你的子域名>.workers.dev
+```
+
+> 也可在 Cloudflare 控制台给 Worker **绑定自定义域**（如 `travel.example.com`），国内访问更稳。
+
+### 使用
+
+- 手机打开上面的地址，**任意网络都能访问**（国内可直连）。
+- 新建行程 → 复制「邀请链接」发给同伴 → 同伴打开后创建自己的角色，即可一起记账。
+- 数据全部存在 Cloudflare D1，长期保存；首次访问 Worker 冷启动约 1 秒。
+
+> **免费额度**：Workers 每天 10 万次请求、D1 每天 500 万次读 / 10 万次写，个人旅行记账完全够用，且**不绑卡**。
+
+---
+
+## 部署到 Render（含 Postgres，备选）
 
 1. 把上面的仓库推到 GitHub。
 2. 打开 [Render 控制台](https://dashboard.render.com) → **New** → **Blueprint** → 连接你的 GitHub 仓库。
@@ -73,9 +129,10 @@ git push -u origin main
 
 ---
 
-## 部署到 Hugging Face Spaces（免信用卡 · 推荐）
+## 部署到 Hugging Face Spaces（免信用卡 · 备选）
 
-如果你不想绑信用卡，用 **Hugging Face Spaces（Docker 模式）** 是最省事的选择：免费、用 GitHub 直接登录、不需要信用卡，而且本仓库已带 `Dockerfile`，**代码一行都不用改**。数据库继续用你建好的 Neon（或 Supabase）。
+> 注意：Hugging Face 在中国大陆网络下通常无法访问，国内用户建议优先选上面的 Cloudflare 方案。
+> 如果你能正常打开 huggingface.co，用 **Hugging Face Spaces（Docker 模式）** 也很省事：免费、用 GitHub 直接登录、不需要信用卡，本仓库已带 `Dockerfile`，**代码一行都不用改**。数据库继续用你建好的 Neon（或 Supabase）。
 
 ### 步骤
 
@@ -123,10 +180,13 @@ git push -u origin main
 
 ```
 travel-account-online/
-├── server.js        # 后端服务 + 路由 + 结算算法
-├── db.js            # 统一数据层（Postgres / SQLite 自动切换）
+├── worker.js        # ★ Cloudflare Worker 入口（路由 + 结算算法），前端由 Static Assets 提供
+├── db-d1.js         # ★ Cloudflare D1 数据层（替代 db.js 的 pg/sqlite 分支）
+├── wrangler.toml    # ★ Cloudflare 部署配置（填 D1 database_id 后 wrangler deploy）
+├── server.js        # Node 版后端（用于 Render / 本地 Node + Postgres/SQLite）
+├── db.js            # Node 版统一数据层（Postgres / SQLite 自动切换）
 ├── package.json     # 依赖与启动脚本
-├── Dockerfile       # Hugging Face Spaces 容器部署（免信用卡）
+├── Dockerfile       # Hugging Face Spaces 容器部署（免信用卡备选）
 ├── .dockerignore    # 容器构建排除项
 ├── render.yaml      # Render 部署配置（含 Postgres）
 ├── .env.example     # 环境变量说明
@@ -141,7 +201,8 @@ travel-account-online/
 
 ## 数据持久化说明
 
-- **云端（Render + Postgres）**：数据独立存储在托管数据库，应用重启、重新部署都不会丢失 —— 这才是「长期稳定」的关键。
+- **Cloudflare D1（推荐）**：数据独立存储在 Cloudflare 托管的 SQLite 数据库，应用重启 / 重新部署都不会丢失，且国内可访问、免费不绑卡。
+- **云端（Render + Postgres）**：数据独立存储在托管数据库，应用重启、重新部署都不会丢失 —— 适合已有 Postgres 的场景。
 - **本地（SQLite）**：数据存在 `data/travel.db`，关闭不丢，适合开发调试或纯本机使用。
 
 ---

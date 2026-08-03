@@ -1,0 +1,17 @@
+# wrangler.toml — Cloudflare Workers 部署配置
+# 部署步骤见 README「Cloudflare 部署」章节。
+# 注意：database_id 需先执行 `wrangler d1 create travel-db` 获取后填入。
+
+name = "travel-account-online"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+# 前端静态资源（public/ 目录）
+# not_found_handling = "single-page-application" 让未匹配路径回退到 index.html
+assets = { directory = "./public", binding = "ASSETS", not_found_handling = "single-page-application" }
+
+# D1 数据库绑定（数据持久化）
+[[d1_databases]]
+binding = "DB"
+database_name = "travel-db"
+database_id = "REPLACE_WITH_YOUR_D1_ID"
