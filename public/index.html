@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#2f6fed" />
+  <title>多人旅游记账</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- 首页 -->
+    <section id="view-home" class="view active">
+      <header class="topbar">
+        <h1>多人旅游记账</h1>
+        <span class="me-tag" id="home-me"></span>
+      </header>
+
+      <div class="container">
+        <div class="hero">
+          <p class="hero-title">和同伴一起记账</p>
+          <p class="hero-sub">创建行程 → 分享邀请码 → 每个人记录自己的开销，结束自动算清谁该给谁</p>
+        </div>
+
+        <div class="card">
+          <div class="card-title">我参与的行程</div>
+          <div id="trip-list" class="trip-list">
+            <div class="empty">还没有行程，新建一个或输入邀请码加入吧</div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-block" onclick="UI.showNewTrip()">＋ 新建行程</button>
+
+        <div class="join-box">
+          <input id="join-code" class="input" placeholder="输入 6 位邀请码加入" maxlength="8" />
+          <button class="btn btn-outline" onclick="UI.joinByCode()">加入</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 行程详情 -->
+    <section id="view-trip" class="view">
+      <header class="topbar">
+        <button class="back" onclick="UI.goHome()">‹</button>
+        <h1 id="trip-name">行程</h1>
+        <button class="more" onclick="UI.showTripMenu()">⋯</button>
+      </header>
+
+      <div class="container">
+        <!-- 邀请分享 -->
+        <div class="share-card">
+          <div class="share-row">
+            <span class="share-label">邀请码</span>
+            <span class="share-code" id="trip-code">------</span>
+            <button class="btn btn-mini" onclick="UI.copyLink()">复制邀请链接</button>
+          </div>
+          <p class="share-tip">把链接或邀请码发给同伴，他们就能一起记账</p>
+        </div>
+
+        <!-- 成员 -->
+        <div class="card">
+          <div class="card-title">成员 <span id="member-count" class="count">0</span></div>
+          <div id="member-list" class="member-list"></div>
+          <div id="my-role-box"></div>
+          <button class="btn btn-outline btn-block btn-sm" onclick="UI.addMember()">＋ 添加成员</button>
+        </div>
+
+        <!-- 支出 -->
+        <div class="card">
+          <div class="card-title">支出记录 <span id="expense-count" class="count">0</span></div>
+          <div id="expense-list" class="expense-list">
+            <div class="empty">还没有支出记录</div>
+          </div>
+        </div>
+
+        <div class="action-row">
+          <button class="btn btn-primary" id="btn-add-expense" onclick="UI.showExpense()">记一笔</button>
+          <button class="btn btn-success" onclick="UI.showSettle()">结算</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 新增 / 编辑支出 -->
+    <section id="view-expense" class="view">
+      <header class="topbar">
+        <button class="back" onclick="UI.backFromExpense()">‹</button>
+        <h1 id="expense-title">记一笔</h1>
+        <span></span>
+      </header>
+
+      <div class="container">
+        <div class="form">
+          <label class="field">
+            <span class="field-label">付款人</span>
+            <select id="exp-payer" class="input"></select>
+            <span class="field-hint">默认是你自己，也可改为替别人付</span>
+          </label>
+
+          <label class="field">
+            <span class="field-label">付款时间</span>
+            <input id="exp-time" type="datetime-local" class="input" />
+          </label>
+
+          <label class="field">
+            <span class="field-label">支付方式</span>
+            <select id="exp-method" class="input">
+              <option value="支付宝">支付宝</option>
+              <option value="微信">微信</option>
+              <option value="现金">现金</option>
+              <option value="其他">其他</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="field-label">金额（元）</span>
+            <input id="exp-amount" type="number" inputmode="decimal" class="input" placeholder="0.00" />
+          </label>
+
+          <label class="field">
+            <span class="field-label">备注</span>
+            <input id="exp-note" class="input" placeholder="如：午餐、门票、打车" />
+          </label>
+
+          <div class="field">
+            <span class="field-label">分摊人员（均分）</span>
+            <div id="exp-sharers" class="check-list"></div>
+            <span class="field-hint">默认全部成员平摊，可取消勾选</span>
+          </div>
+
+          <button class="btn btn-primary btn-block" onclick="UI.saveExpense()">保存</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 结算 -->
+    <section id="view-settle" class="view">
+      <header class="topbar">
+        <button class="back" onclick="UI.goTrip()">‹</button>
+        <h1>结算清单</h1>
+        <span></span>
+      </header>
+
+      <div class="container">
+        <h2 id="settle-name" class="settle-title"></h2>
+
+        <div class="card">
+          <div class="card-title">每个人的账目</div>
+          <div id="settle-summary" class="settle-summary"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">谁该给谁</div>
+          <div id="settle-trans" class="settle-trans"></div>
+        </div>
+
+        <button class="btn btn-outline btn-block" onclick="UI.goTrip()">返回行程</button>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- 通用弹窗（输入类） -->
+  <div id="modal" class="modal-mask" style="display:none">
+    <div class="modal">
+      <div class="modal-title" id="modal-title">提示</div>
+      <div class="modal-body" id="modal-body"></div>
+      <div class="modal-actions" id="modal-actions"></div>
+    </div>
+  </div>
+
+  <!-- 轻提示 -->
+  <div id="toast" class="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

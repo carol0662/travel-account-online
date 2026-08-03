@@ -1,0 +1,119 @@
+# 多人旅游记账 APP（联网共享版 · Postgres 长期稳定）
+
+多人一起旅行时，用手机记录团队共同开销，行程结束后自动算出每个人应收 / 应付，并生成最小转账清单。
+
+> 本版本是**真正的联网共享版**：数据存在服务端数据库，多人跨设备一起记同一笔账；云端部署使用 **Postgres** 持久化，长期不丢。
+
+---
+
+## 功能一览
+
+| 功能 | 说明 |
+|---|---|
+| 多人一起记账 | 新建行程生成「邀请码 / 邀请链接」，同伴用邀请码加入，看到的是同一份账目 |
+| 每人创建自己的角色 | 进入行程后各自「创建我的角色」，成员表记录创建者（用于默认付款人=自己） |
+| 记支出 | 付款时间（默认当前、可改）、付款人、支付方式（支付宝/微信/现金/其他）、金额、备注、**多选分摊人员均分** |
+| 默认付款人=自己 | 记一笔时付款人下拉默认选中「我」，需要时可改成替别人付 |
+| 自动结算 | 每人「付款总额 / 分摊总额 / 净额」，区分应收/应付，贪心算法生成最小转账清单 |
+
+---
+
+## 技术栈
+
+- 前端：HTML + CSS + JS（移动端优先单页应用，大按钮、清晰反馈）
+- 后端：Node.js 内置 `http`（零 Web 框架）
+- 数据库：**Postgres（部署）/ SQLite（本地开发）自动切换**
+  - 有 `DATABASE_URL` → 用 Postgres（`pg` 驱动），数据持久化在托管数据库
+  - 无 `DATABASE_URL` → 用 Node 内置 SQLite，零第三方依赖，方便本地开发
+- 占位符统一用 `?`，Postgres 模式内部转换为 `$1, $2 …`，业务代码无需关心后端差异
+
+---
+
+## 本地运行（零依赖，用 SQLite）
+
+```bash
+cd travel-account-online
+npm install        # 仅部署/Postgres 模式需要 pg；本地 SQLite 模式可跳过此步
+npm start
+# 浏览器打开 http://localhost:3000
+```
+
+不设 `DATABASE_URL` 即自动使用本地 SQLite 文件 `data/travel.db`，无需安装任何数据库。
+
+---
+
+## 推送到 GitHub
+
+```bash
+git init
+git add .
+git commit -m "init: 多人旅游记账联网版（Postgres/SQLite 双后端）"
+git branch -M main
+git remote add origin https://github.com/<你的用户名>/<仓库名>.git
+git push -u origin main
+```
+
+---
+
+## 部署到 Render（含 Postgres，长期稳定）
+
+1. 把上面的仓库推到 GitHub。
+2. 打开 [Render 控制台](https://dashboard.render.com) → **New** → **Blueprint** → 连接你的 GitHub 仓库。
+3. Render 读取本仓库的 `render.yaml`，自动创建：
+   - 一个免费的 **Postgres 数据库** `travel-db`
+   - 一个 **Web 服务** `travel-account-online`，并把 `DATABASE_URL` 自动注入到服务环境变量
+4. 部署完成后得到公网地址（如 `https://travel-account-online.onrender.com`），**手机任意网络都能打开**。
+5. 多人协作：在 APP 里新建行程 → 复制「邀请链接」发给同伴 → 同伴打开后创建自己的角色，即可一起记账。
+
+> **免费版注意**：Render 免费 Postgres 在 90 天无活动后会暂停/删除；免费 Web 服务空闲后首次访问会冷启动（约几十秒）。要真正的长期稳定，建议：
+> - 升级 Render 付费实例；或
+> - 改用 Supabase / Neon 等外部 Postgres，把 `DATABASE_URL` 指向它即可，**无需改动任何代码**。
+
+---
+
+## API 概览
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/trips` | 行程列表 |
+| POST | `/api/trips` | 新建行程（自动生成邀请码 `code`） |
+| GET | `/api/trips/code/:code` | 按邀请码查询行程（用于加入） |
+| GET/PUT/DELETE | `/api/trips/:id` | 行程详情 / 改名 / 删除（级联删除成员与支出） |
+| POST | `/api/trips/:id/members` | 新增成员（带 `created_by` 标记创建者） |
+| PUT/DELETE | `/api/members/:id` | 改/删成员（作为付款人的成员需先删其支出） |
+| POST | `/api/trips/:id/expenses` | 记一笔支出（含分摊人员数组） |
+| PUT/DELETE | `/api/expenses/:id` | 改/删支出 |
+| GET | `/api/trips/:id/settle` | 结算：每人汇总 + 最小转账清单 |
+
+---
+
+## 目录结构
+
+```
+travel-account-online/
+├── server.js        # 后端服务 + 路由 + 结算算法
+├── db.js            # 统一数据层（Postgres / SQLite 自动切换）
+├── package.json     # 依赖与启动脚本
+├── render.yaml      # Render 部署配置（含 Postgres）
+├── .env.example     # 环境变量说明
+├── public/
+│   ├── index.html   # SPA 页面骨架
+│   ├── style.css    # 移动端样式
+│   └── app.js       # 前端逻辑（身份 / 邀请码加入 / 创建角色 / 记账 / 结算）
+└── data/            # 本地 SQLite 文件（仅本地模式生成，已被 .gitignore 忽略）
+```
+
+---
+
+## 数据持久化说明
+
+- **云端（Render + Postgres）**：数据独立存储在托管数据库，应用重启、重新部署都不会丢失 —— 这才是「长期稳定」的关键。
+- **本地（SQLite）**：数据存在 `data/travel.db`，关闭不丢，适合开发调试或纯本机使用。
+
+---
+
+## 常见问题
+
+- **手机连不上？** 云端版用公网链接，任意网络可访问；本地版需手机与电脑同一 Wi-Fi 并访问电脑局域网 IP。
+- **删除成员提示有支出？** 该成员已作为付款人存在支出记录，需先删除其相关支出，避免账目错乱。
+- **结算金额对不上？** 每笔支出按「分摊人员数量均分」，可在支出详情核对分摊名单。

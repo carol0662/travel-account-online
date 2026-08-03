@@ -1,0 +1,25 @@
+# Render 部署配置（一键部署，含托管 Postgres 数据库）
+# 关联 GitHub 仓库后，Render 会自动按此文件创建数据库与服务。
+databases:
+  - name: travel-db
+    databaseName: travel
+    user: travel
+    plan: free
+
+services:
+  - type: web
+    name: travel-account-online
+    runtime: node
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: npm install
+    startCommand: node --experimental-sqlite server.js
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: travel-db
+          property: connectionString
