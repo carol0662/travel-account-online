@@ -1,10 +1,10 @@
-# 多人旅游记账 APP（联网共享版 · Postgres 长期稳定）
+# 多人旅游记账 APP（联网共享版 · 国内可访问）
 
 多人一起旅行时，用手机记录团队共同开销，行程结束后自动算出每个人应收 / 应付，并生成最小转账清单。
 
-> 本版本是**真正的联网共享版**：数据存在服务端数据库，多人跨设备一起记同一笔账；支持两种后端：
-> - **Cloudflare Workers + D1（推荐）**：国内可访问、永久免费、无需信用卡，数据长期保存 → 见「部署到 Cloudflare」
-> - **Node + Postgres（Render / Neon / Supabase）**：适合已有 Postgres 的场景 → 见「部署到 Render」
+> 本版本是**真正的联网共享版**：数据存在服务端，多人跨设备一起记同一笔账。
+> **推荐部署到腾讯 EdgeOne Pages**（国内直连、永久免费、无需信用卡、数据长期保存）→ 见「部署到 EdgeOne Pages」。
+> 备选：Cloudflare Workers + D1（**但 `*.workers.dev` 在国内常被墙/限速，不推荐国内使用**）、Node + Postgres（Render 需绑卡、国内访问不稳）。
 
 ---
 
@@ -23,12 +23,11 @@
 ## 技术栈
 
 - 前端：HTML + CSS + JS（移动端优先单页应用，大按钮、清晰反馈）
-- 后端：Node.js 内置 `http`（零 Web 框架）
-- 数据库：三后端可切换
-  - **Cloudflare D1（部署推荐）**：`worker.js` + `db-d1.js`，国内可访问、免费不绑卡
-  - **Postgres（Render / Neon / Supabase）**：`server.js` + `db.js`，有 `DATABASE_URL` 时启用
-  - **SQLite（本地开发）**：`server.js` + `db.js`，无 `DATABASE_URL` 时用 Node 内置 SQLite，零依赖
-- 占位符统一用 `?`：Postgres 模式内部转为 `$1, $2 …`，D1 / SQLite 直接使用，业务代码无需关心后端差异
+- 后端：EdgeOne Pages Functions（边缘函数，Node.js 运行时，零服务器）
+- 数据库：EdgeOne Pages KV（键值持久化，1GB 免费额度，数据长期保存）
+- 数据模型：以「行程」为单位，trip / 成员 / 支出 / 分摊分别独立存储为 KV 键，写入互不覆盖
+
+> 仓库同时保留了两套旧方案代码（Cloudflare：`worker.js`+`db-d1.js`+`wrangler.toml`；Node+Postgres：`server.js`+`db.js`），仅作为备选参考，主推 EdgeOne 方案。
 
 ---
 
@@ -36,7 +35,7 @@
 
 ```bash
 cd travel-account-online
-npm install        # 仅部署/Postgres 模式需要 pg；本地 SQLite 模式可跳过此步
+npm install        # 仅 Postgres 模式需要 pg；本地 SQLite 模式可跳过此步
 npm start
 # 浏览器打开 http://localhost:3000
 ```
@@ -50,7 +49,7 @@ npm start
 ```bash
 git init
 git add .
-git commit -m "init: 多人旅游记账联网版（Postgres/SQLite 双后端）"
+git commit -m "init: 多人旅游记账联网版"
 git branch -M main
 git remote add origin https://github.com/<你的用户名>/<仓库名>.git
 git push -u origin main
@@ -58,9 +57,42 @@ git push -u origin main
 
 ---
 
-## 部署到 Cloudflare（推荐：国内可访问 + 免费 + 不绑卡）
+## 部署到 EdgeOne Pages（推荐：国内可访问 + 免费 + 不绑卡）
 
-Cloudflare Workers + D1 数据库：**国内网络可访问、永久免费额度、注册无需信用卡**，数据存在 D1（SQLite）长期不丢。本仓库已带 `worker.js` / `db-d1.js` / `wrangler.toml`，前端一行不改。
+腾讯 EdgeOne Pages：**国内网络直连、永久免费额度、注册无需信用卡**。本仓库已带 `functions/`（边缘函数）+ `public/`（前端），前端一行不改。
+
+### 第一步：把代码推到 GitHub
+（见上方「推送到 GitHub」）
+
+### 第二步：创建 EdgeOne Pages 项目
+1. 打开 https://edgeone.cloud.tencent.com/ → 左侧「Pages 服务」→ 开通
+2. 点击「绑定 GitHub」，授权后「创建项目」→ 选择你的仓库 `travel-account-online`
+3. 构建配置：
+   - **构建命令**：留空（无需构建）
+   - **输出目录**：填 `public`（前端静态文件所在目录）
+   - 部署分支：`main`
+4. 保存，平台自动首次部署（此时还没有数据，因为还没绑 KV）
+
+### 第三步：创建并绑定 KV 存储（关键）
+1. EdgeOne 控制台左侧「存储」→「KV」→ 点击「申请开通」（公测免费）
+2. 开通后点「创建命名空间」，名称随意（如 `travel-kv`）
+3. 进入该命名空间 → 「关联项目」→ 绑定到你的 Pages 项目
+4. 绑定时的**变量名必须填 `TRAVEL_KV`**（代码里按这个变量名读取；若填别的，请同步改 `functions/_db.js` 里的 `resolveKV`）
+
+### 第四步：重新部署
+回到 Pages 项目 → 「构建部署」→ **重新部署**（或等下次 Git 推送自动部署）。
+部署完成后得到地址：`https://<你的子域名>.pages.dev`（或你绑定的自定义域名），**手机任意网络（国内直连）都能用**。
+
+> 说明：首次访问可能稍慢（边缘函数冷启动），之后正常。数据全部存在 KV，长期保存。
+> 多人协作：APP 里新建行程 → 复制「邀请链接」发给同伴 → 同伴打开后创建自己的角色，一起记账。
+
+---
+
+## 部署到 Cloudflare（备选 · 国内访问不稳）
+
+> ⚠️ `*.workers.dev` 域名在大陆常被墙或严重限速，国内手机可能无法打开。**不推荐国内使用**，仅作记录。
+
+Cloudflare Workers + D1 数据库：永久免费额度、注册无需信用卡，数据存在 D1（SQLite）长期不丢。本仓库已带 `worker.js` / `db-d1.js` / `wrangler.toml`，前端一行不改。
 
 ### 准备
 
@@ -180,35 +212,39 @@ https://travel-account-online.<你的子域名>.workers.dev
 
 ```
 travel-account-online/
-├── worker.js        # ★ Cloudflare Worker 入口（路由 + 结算算法），前端由 Static Assets 提供
-├── db-d1.js         # ★ Cloudflare D1 数据层（替代 db.js 的 pg/sqlite 分支）
-├── wrangler.toml    # ★ Cloudflare 部署配置（填 D1 database_id 后 wrangler deploy）
-├── server.js        # Node 版后端（用于 Render / 本地 Node + Postgres/SQLite）
-├── db.js            # Node 版统一数据层（Postgres / SQLite 自动切换）
-├── package.json     # 依赖与启动脚本
-├── Dockerfile       # Hugging Face Spaces 容器部署（免信用卡备选）
-├── .dockerignore    # 容器构建排除项
-├── render.yaml      # Render 部署配置（含 Postgres）
-├── .env.example     # 环境变量说明
-├── public/
-│   ├── index.html   # SPA 页面骨架
-│   ├── style.css    # 移动端样式
-│   └── app.js       # 前端逻辑（身份 / 邀请码加入 / 创建角色 / 记账 / 结算）
-└── data/            # 本地 SQLite 文件（仅本地模式生成，已被 .gitignore 忽略）
+├── functions/                 # ★ EdgeOne Pages Functions（边缘函数，主推部署方式）
+│   ├── _db.js                 # ★ 基于 KV 的数据层 + 结算算法
+│   ├── _resp.js               # ★ JSON 响应辅助
+│   └── api/                   # ★ /api/* 路由（trips、members、expenses、settle、code）
+├── public/                    # 前端静态文件（EdgeOne 输出目录设为 public）
+│   ├── index.html             # SPA 页面骨架
+│   ├── style.css              # 移动端样式
+│   └── app.js                 # 前端逻辑（身份 / 邀请码加入 / 创建角色 / 记账 / 结算）
+├── worker.js                  # Cloudflare Worker 入口（备选方案）
+├── db-d1.js                   # Cloudflare D1 数据层（备选方案）
+├── wrangler.toml              # Cloudflare 部署配置（备选）
+├── server.js                  # Node 版后端（本地开发 / Render 备选）
+├── db.js                      # Node 版统一数据层（Postgres / SQLite 自动切换）
+├── package.json               # 依赖与启动脚本
+├── Dockerfile                 # Hugging Face Spaces 容器部署（免信用卡备选，国内打不开）
+├── render.yaml                # Render 部署配置（含 Postgres，需绑卡）
+├── .env.example               # 环境变量说明
+└── data/                      # 本地 SQLite 文件（仅本地模式生成，已被 .gitignore 忽略）
 ```
 
 ---
 
 ## 数据持久化说明
 
-- **Cloudflare D1（推荐）**：数据独立存储在 Cloudflare 托管的 SQLite 数据库，应用重启 / 重新部署都不会丢失，且国内可访问、免费不绑卡。
-- **云端（Render + Postgres）**：数据独立存储在托管数据库，应用重启、重新部署都不会丢失 —— 适合已有 Postgres 的场景。
+- **EdgeOne Pages KV（推荐）**：数据独立存储在腾讯云边缘 KV（1GB 免费），应用重启 / 重新部署都不会丢失，且国内可访问、免费不绑卡。
+- **Cloudflare D1（备选）**：数据存在 Cloudflare 托管的 SQLite，但 `*.workers.dev` 国内常无法访问。
+- **云端（Render + Postgres）**：独立托管数据库，但 Render 免费实例需绑卡、国内访问不稳。
 - **本地（SQLite）**：数据存在 `data/travel.db`，关闭不丢，适合开发调试或纯本机使用。
 
 ---
 
 ## 常见问题
 
-- **手机连不上？** 云端版用公网链接，任意网络可访问；本地版需手机与电脑同一 Wi-Fi 并访问电脑局域网 IP。
+- **手机连不上？** EdgeOne 版为国内公网链接，任意网络可访问；本地版需手机与电脑同一 Wi-Fi 并访问电脑局域网 IP。
 - **删除成员提示有支出？** 该成员已作为付款人存在支出记录，需先删除其相关支出，避免账目错乱。
 - **结算金额对不上？** 每笔支出按「分摊人员数量均分」，可在支出详情核对分摊名单。
