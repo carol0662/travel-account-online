@@ -24,8 +24,8 @@
 
 - 前端：HTML + CSS + JS（移动端优先单页应用，大按钮、清晰反馈）
 - 后端：EdgeOne Pages Functions（边缘函数，Node.js 运行时，零服务器）
-- 数据库：EdgeOne Pages KV（键值持久化，1GB 免费额度，数据长期保存）
-- 数据模型：以「行程」为单位，trip / 成员 / 支出 / 分摊分别独立存储为 KV 键，写入互不覆盖
+- 数据库：EdgeOne Pages Blob 对象存储（即用即得、免人工审批，1GB 免费额度，数据长期保存）
+- 数据模型：以「行程」为单位，trip / 成员 / 支出 / 分摊分别独立存储为 Blob 键，写入互不覆盖
 
 > 仓库同时保留了两套旧方案代码（Cloudflare：`worker.js`+`db-d1.js`+`wrangler.toml`；Node+Postgres：`server.js`+`db.js`），仅作为备选参考，主推 EdgeOne 方案。
 
@@ -64,26 +64,28 @@ git push -u origin main
 ### 第一步：把代码推到 GitHub
 （见上方「推送到 GitHub」）
 
-### 第二步：创建 EdgeOne Pages 项目
-1. 打开 https://edgeone.cloud.tencent.com/ → 左侧「Pages 服务」→ 开通
-2. 点击「绑定 GitHub」，授权后「创建项目」→ 选择你的仓库 `travel-account-online`
+### 第二步：创建 EdgeOne Makers 项目
+1. 打开 https://edgeone.cloud.tencent.com/ → 左侧「Makers」→ 点击「通过导入 Git 仓库创建」
+2. 授权 GitHub 后选择仓库 `travel-account-online`
 3. 构建配置：
    - **构建命令**：留空（无需构建）
    - **输出目录**：填 `public`（前端静态文件所在目录）
    - 部署分支：`main`
-4. 保存，平台自动首次部署（此时还没有数据，因为还没绑 KV）
+   - 加速区域：选「全球可用区（含中国大陆）」以保证国内直连
+4. 保存，平台自动首次部署
 
-### 第三步：创建并绑定 KV 存储（关键）
-1. EdgeOne 控制台左侧「存储」→「KV」→ 点击「申请开通」（公测免费）
-2. 开通后点「创建命名空间」，名称随意（如 `travel-kv`）
-3. 进入该命名空间 → 「关联项目」→ 绑定到你的 Pages 项目
-4. 绑定时的**变量名必须填 `TRAVEL_KV`**（代码里按这个变量名读取；若填别的，请同步改 `functions/_db.js` 里的 `resolveKV`）
+### 第三步：数据存储（无需任何配置 ✅）
+本项目使用 **EdgeOne Blob 存储**，与 KV 不同，Blob 是「即用即得」——
+**首次请求时由代码自动创建命名空间，不需要在控制台申请开通、也不需要绑定变量名、更不用人等审批**。
+所以这一步什么都不用做，部署完即可直接记账，数据自动持久化。
 
-### 第四步：重新部署
-回到 Pages 项目 → 「构建部署」→ **重新部署**（或等下次 Git 推送自动部署）。
-部署完成后得到地址：`https://<你的子域名>.pages.dev`（或你绑定的自定义域名），**手机任意网络（国内直连）都能用**。
+> 若之前误点了 KV 的「申请开通」正在审批中，可忽略，本方案完全不依赖 KV。
 
-> 说明：首次访问可能稍慢（边缘函数冷启动），之后正常。数据全部存在 KV，长期保存。
+### 第四步：重新部署 / 自动部署
+推送到 GitHub 的 `main` 分支会**自动触发重新部署**；也可在控制台「构建部署」手动「重新部署」。
+部署完成后得到地址：`https://<你的子域名>.edgeone.cool`（或你绑定的自定义域名），**手机任意网络（国内直连）都能用**。
+
+> 说明：首次访问可能稍慢（边缘函数冷启动），之后正常。数据全部存在 EdgeOne Blob，长期保存。
 > 多人协作：APP 里新建行程 → 复制「邀请链接」发给同伴 → 同伴打开后创建自己的角色，一起记账。
 
 ---
@@ -213,7 +215,7 @@ https://travel-account-online.<你的子域名>.workers.dev
 ```
 travel-account-online/
 ├── functions/                 # ★ EdgeOne Pages Functions（边缘函数，主推部署方式）
-│   ├── _db.js                 # ★ 基于 KV 的数据层 + 结算算法
+│   ├── _db.js                 # ★ 基于 Blob 的数据层（KV 接口适配器）+ 结算算法
 │   ├── _resp.js               # ★ JSON 响应辅助
 │   └── api/                   # ★ /api/* 路由（trips、members、expenses、settle、code）
 ├── public/                    # 前端静态文件（EdgeOne 输出目录设为 public）
@@ -236,7 +238,7 @@ travel-account-online/
 
 ## 数据持久化说明
 
-- **EdgeOne Pages KV（推荐）**：数据独立存储在腾讯云边缘 KV（1GB 免费），应用重启 / 重新部署都不会丢失，且国内可访问、免费不绑卡。
+- **EdgeOne Pages Blob（推荐）**：数据独立存储在腾讯云边缘 Blob 对象存储（1GB 免费），首次请求自动创建命名空间，无需申请开通 / 绑卡 / 等审批；应用重启或重新部署都不会丢失，且国内可访问、免费不绑卡。
 - **Cloudflare D1（备选）**：数据存在 Cloudflare 托管的 SQLite，但 `*.workers.dev` 国内常无法访问。
 - **云端（Render + Postgres）**：独立托管数据库，但 Render 免费实例需绑卡、国内访问不稳。
 - **本地（SQLite）**：数据存在 `data/travel.db`，关闭不丢，适合开发调试或纯本机使用。

@@ -1,15 +1,21 @@
-// EdgeOne Pages Functions 共享数据层（基于 KV 存储）
-// 所有函数都接收一个 kv 实例（绑定变量名 TRAVEL_KV），不直接依赖全局变量，
-// 方便在本地用内存模拟器测试。
+// EdgeOne Makers 共享数据层（基于 Blob 存储，无需人工审批，部署即用）
+// 所有业务函数都接收一个「KV 接口风格」的存储实例（见 makeKVAdapter），
+// 方便在本地用内存模拟器测试，也方便日后切换底层存储。
 //
-// KV 键设计（每个实体独立 key，写入互不影响，降低最终一致性下的并发覆盖风险）：
+// Blob 键设计（每个实体独立 key，写入互不影响，降低最终一致性下的并发覆盖风险）：
 //   trip:<id>                    -> {id,name,created_at,code}
 //   code:<code>                 -> tripId
 //   mem:<tripId>:<memberId>     -> {id,trip_id,name,created_by}
 //   exp:<tripId>:<expenseId>    -> {id,trip_id,payer_id,amount,pay_method,note,paid_at}
 //   shr:<tripId>:<expenseId>:<memberId> -> "1"
+//
+// 为什么用 Blob 而不是 KV：Blob 是「即用即得」，首次 getStore 自动创建命名空间，
+// 不需要在控制台申请开通 + 等人工审批；API 与 KV 高度相似，本文件用一个适配器
+// 把 Blob 包成业务代码期望的 KV 接口（get(key,'json') / put / delete / list({prefix})），
+// 因此上方所有业务函数无需任何改动。
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const STORE_NAME = 'travel';
 
 function uid(prefix) {
   return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -19,6 +25,35 @@ function genCode() {
   let s = '';
   for (let i = 0; i < 6; i++) s += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
   return s;
+}
+
+// 把 Blob 存储适配成业务代码期望的 KV 接口。
+// store: Blob 实例（来自 getStore），需支持 get/getJSON/set/delete/list。
+function makeKVAdapter(store) {
+  return {
+    // 与 KV 一致：get(key,'json') 返回解析后的对象或 null；get(key) 返回原始字符串或 null
+    async get(key, type) {
+      if (type === 'json') {
+        const v = await store.get(key, { type: 'json' });
+        return v == null ? null : v;
+      }
+      const v = await store.get(key);
+      return v == null ? null : v;
+    },
+    // 业务里 put 的值始终是字符串（JSON 字符串或原始 id），Blob set 存为文本
+    async put(key, value) {
+      await store.set(key, value);
+    },
+    async delete(key) {
+      await store.delete(key);
+    },
+    // Blob list 自动聚合分页，直接返回全部 key
+    async list({ prefix }) {
+      const { blobs } = await store.list({ prefix, consistency: 'strong' });
+      const keys = (blobs || []).map((b) => ({ key: b.key }));
+      return { keys, cursor: null, complete: true };
+    },
+  };
 }
 
 async function getJSON(kv, key) {
@@ -255,18 +290,22 @@ function round2(n) {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
-// 解析 KV 实例：优先 context.env.TRAVEL_KV，其次全局 TRAVEL_KV（EdgeOne 注入方式之一）
-function resolveKV(context) {
-  const env = (context && context.env) || {};
-  if (env.TRAVEL_KV) return env.TRAVEL_KV;
+// 解析存储实例：在 EdgeOne Makers Functions 中通过 @edgeone/pages-blob 的
+// getStore 获取 Blob 命名空间（首次调用自动创建，无需控制台开通），再用适配器
+// 包成业务代码期望的 KV 接口。使用「强一致」读取，避免写入后短时间读不到最新值。
+async function resolveKV() {
   try {
-    if (typeof TRAVEL_KV !== 'undefined' && TRAVEL_KV) return TRAVEL_KV;
-  } catch (e) {}
-  return null;
+    const mod = await import('@edgeone/pages-blob');
+    const store = mod.getStore({ name: STORE_NAME, consistency: 'strong' });
+    return makeKVAdapter(store);
+  } catch (e) {
+    return null;
+  }
 }
 
 export {
   uid,
+  makeKVAdapter,
   createTrip,
   listTrips,
   getTrip,

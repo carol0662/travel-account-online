@@ -11,6 +11,7 @@
     "node": ">=22.5.0"
   },
   "dependencies": {
+    "@edgeone/pages-blob": "^0.0.16",
     "pg": "^8.13.1"
   }
 }

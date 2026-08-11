@@ -2,8 +2,8 @@ import { getTrip, getTripDetail, deleteTrip, resolveKV } from '../_db.js';
 import { json, fail } from '../_resp.js';
 
 export async function onRequestGet(context) {
-  const kv = resolveKV(context);
-  if (!kv) return fail('KV 未绑定', 500);
+  const kv = await resolveKV(context);
+  if (!kv) return fail('存储未初始化（Blob 存储创建失败，请稍后重试）', 500);
   try {
     const id = context.params.id;
     const detail = await getTripDetail(kv, id);
@@ -15,8 +15,8 @@ export async function onRequestGet(context) {
 }
 
 export async function onRequestDelete(context) {
-  const kv = resolveKV(context);
-  if (!kv) return fail('KV 未绑定', 500);
+  const kv = await resolveKV(context);
+  if (!kv) return fail('存储未初始化（Blob 存储创建失败，请稍后重试）', 500);
   try {
     const id = context.params.id;
     await deleteTrip(kv, id);
