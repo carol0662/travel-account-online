@@ -13,6 +13,12 @@
 // 不需要在控制台申请开通 + 等人工审批；API 与 KV 高度相似，本文件用一个适配器
 // 把 Blob 包成业务代码期望的 KV 接口（get(key,'json') / put / delete / list({prefix})），
 // 因此上方所有业务函数无需任何改动。
+//
+// 注意：本文件部署在 Edge Functions（edge-functions/ 目录），Blob 是边缘运行时
+// 原生内置存储，@edgeone/pages-blob 由边缘运行时直接提供并自动注入部署凭证；
+// 不要放到 cloud-functions/（云端 Node 运行时没有 Blob 凭证，getStore 会报错）。
+
+import { getStore } from '@edgeone/pages-blob';
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const STORE_NAME = 'travel';
@@ -290,15 +296,15 @@ function round2(n) {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
-// 解析存储实例：在 EdgeOne Makers Functions 中通过 @edgeone/pages-blob 的
-// getStore 获取 Blob 命名空间（首次调用自动创建，无需控制台开通），再用适配器
-// 包成业务代码期望的 KV 接口。使用「强一致」读取，避免写入后短时间读不到最新值。
+// 解析存储实例：在 Edge Functions 边缘运行时中，@edgeone/pages-blob 由运行时原生
+// 提供并自动注入部署凭证，getStore 直接拿到 Blob 命名空间（首次调用自动创建，
+// 无需控制台开通），再用适配器包成业务代码期望的 KV 接口。
 async function resolveKV() {
   try {
-    const mod = await import('@edgeone/pages-blob');
-    const store = mod.getStore({ name: STORE_NAME, consistency: 'strong' });
+    const store = getStore({ name: STORE_NAME });
     return makeKVAdapter(store);
   } catch (e) {
+    console.error('resolveKV failed:', e && e.message);
     return null;
   }
 }

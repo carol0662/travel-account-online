@@ -59,7 +59,7 @@ git push -u origin main
 
 ## 部署到 EdgeOne Pages（推荐：国内可访问 + 免费 + 不绑卡）
 
-腾讯 EdgeOne Pages：**国内网络直连、永久免费额度、注册无需信用卡**。本仓库已带 `functions/`（边缘函数）+ `public/`（前端），前端一行不改。
+腾讯 EdgeOne Makers：**国内网络直连、永久免费额度、注册无需信用卡**。本仓库已带 `edge-functions/`（Edge Functions 边缘函数）+ `public/`（前端），前端一行不改。
 
 ### 第一步：把代码推到 GitHub
 （见上方「推送到 GitHub」）
@@ -214,7 +214,7 @@ https://travel-account-online.<你的子域名>.workers.dev
 
 ```
 travel-account-online/
-├── functions/                 # ★ EdgeOne Pages Functions（边缘函数，主推部署方式）
+├── edge-functions/            # ★ EdgeOne Makers Edge Functions（边缘函数，主推部署方式）
 │   ├── _db.js                 # ★ 基于 Blob 的数据层（KV 接口适配器）+ 结算算法
 │   ├── _resp.js               # ★ JSON 响应辅助
 │   └── api/                   # ★ /api/* 路由（trips、members、expenses、settle、code）

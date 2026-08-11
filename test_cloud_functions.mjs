@@ -1,6 +1,6 @@
-// 验证 cloud-functions 模块可以正常 import（不依赖 EdgeOne 运行时）
-import { createTrip, listTrips, settle, resolveKV, uid } from './cloud-functions/_db.js';
-import { json, fail, body } from './cloud-functions/_resp.js';
+// 验证 edge-functions 模块可以正常 import（不依赖 EdgeOne 运行时）
+import { createTrip, listTrips, settle, resolveKV, uid } from './edge-functions/_db.js';
+import { json, fail, body } from './edge-functions/_resp.js';
 
 let passed = 0;
 let failed = 0;
