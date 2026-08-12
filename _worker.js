@@ -1,10 +1,10 @@
-// worker.js — Cloudflare Worker 入口（多人旅游记账 · 联网共享版）
+// _worker.js — Cloudflare Pages 边缘函数入口（多人旅游记账 · 联网共享版）
 // ------------------------------------------------------------------
-//  - 前端 public/ 由 Workers Static Assets 提供（绑定名 ASSETS）
+//  - 前端 public/ 由 Pages Static Assets 提供（绑定名 ASSETS）
 //  - /api/* 由本 Worker 处理
 //  - 数据存 Cloudflare D1（绑定名 DB），建表在首次请求时自动完成
 //
-// 部署：wrangler deploy（见 README 的「Cloudflare 部署」章节）
+// 部署：Cloudflare 控制台 Pages → 连接 GitHub → 输出目录 public（见 README）
 
 import { createDb } from './db-d1.js';
 

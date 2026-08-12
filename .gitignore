@@ -3,3 +3,19 @@ node_modules/
 data/
 .env
 .DS_Store
+
+# EdgeOne Makers 版本（已弃用，保留本地参考，不纳入部署）
+edge-functions/
+test_blob.mjs
+test_cloud_functions.mjs
+
+# Node / Postgres 版（已弃用，保留本地参考）
+db.js
+server.js
+render.yaml
+Dockerfile
+.dockerignore
+.env.example
+start.bat
+package-lock.json
+

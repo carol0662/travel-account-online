@@ -1,8 +1,9 @@
 {
   "name": "travel-account-online",
-  "version": "1.1.0",
-  "description": "多人旅游记账 APP（联网共享版，EdgeOne Makers Cloud Functions + Blob 存储，国内可访问/免费/不绑卡）",
-  "dependencies": {
-    "@edgeone/pages-blob": "^0.0.16"
+  "version": "1.2.0",
+  "private": true,
+  "description": "多人旅游记账 APP（Cloudflare Pages + D1 版，自带 *.pages.dev 永久免费域名）",
+  "scripts": {
+    "dev": "wrangler pages dev --binding DB=./.wrangler/d1 --persist"
   }
 }

@@ -1,10 +1,10 @@
-# 多人旅游记账 APP（联网共享版 · 国内可访问）
+# 多人旅游记账 APP（联网共享版 · 永久免费域名）
 
 多人一起旅行时，用手机记录团队共同开销，行程结束后自动算出每个人应收 / 应付，并生成最小转账清单。
 
 > 本版本是**真正的联网共享版**：数据存在服务端，多人跨设备一起记同一笔账。
-> **推荐部署到腾讯 EdgeOne Pages**（国内直连、永久免费、无需信用卡、数据长期保存）→ 见「部署到 EdgeOne Pages」。
-> 备选：Cloudflare Workers + D1（**但 `*.workers.dev` 在国内常被墙/限速，不推荐国内使用**）、Node + Postgres（Render 需绑卡、国内访问不稳）。
+> **推荐部署到 Cloudflare Pages**（自带 `*.pages.dev` **永久免费域名**、无需信用卡、数据存在 D1 长期保存）→ 见「部署到 Cloudflare Pages」。
+> 说明：Cloudflare `*.pages.dev` 在大陆访问速度可能不及国内厂商，但一般可打开；若需国内最优访问可考虑绑定自己的域名（CNAME 到 Cloudflare）。
 
 ---
 
@@ -23,24 +23,26 @@
 ## 技术栈
 
 - 前端：HTML + CSS + JS（移动端优先单页应用，大按钮、清晰反馈）
-- 后端：EdgeOne Pages Functions（边缘函数，Node.js 运行时，零服务器）
-- 数据库：EdgeOne Pages Blob 对象存储（即用即得、免人工审批，1GB 免费额度，数据长期保存）
-- 数据模型：以「行程」为单位，trip / 成员 / 支出 / 分摊分别独立存储为 Blob 键，写入互不覆盖
+- 后端：Cloudflare Pages（`_worker.js` 边缘函数，零服务器）
+- 数据库：Cloudflare D1（SQLite 语法，绑定名 `DB`，建表在首次请求时自动完成，数据长期保存）
+- 数据模型：以「行程」为单位，trip / 成员 / 支出 / 分摊分别建表，外键级联删除
 
-> 仓库同时保留了两套旧方案代码（Cloudflare：`worker.js`+`db-d1.js`+`wrangler.toml`；Node+Postgres：`server.js`+`db.js`），仅作为备选参考，主推 EdgeOne 方案。
+> 数据访问层在 `db-d1.js`，业务路由在 `_worker.js`，前端 `public/` 一行不改。
+> 早期试过的 EdgeOne Makers / Node+Postgres 方案已弃用（保留在本地 `edge-functions/`、`server.js` 等文件，已 gitignore，不纳入部署）。
 
 ---
 
-## 本地运行（零依赖，用 SQLite）
+## 本地预览（可选）
+
+如需本地调试，用 wrangler 起一个 Cloudflare 本地环境（需先 `wrangler d1 create` 并在 `wrangler.toml` 填好 `database_id`）：
 
 ```bash
-cd travel-account-online
-npm install        # 仅 Postgres 模式需要 pg；本地 SQLite 模式可跳过此步
-npm start
-# 浏览器打开 http://localhost:3000
+npm install -g wrangler
+wrangler pages dev --binding DB=./.wrangler/d1 --persist
+# 浏览器打开提示的本地地址
 ```
 
-不设 `DATABASE_URL` 即自动使用本地 SQLite 文件 `data/travel.db`，无需安装任何数据库。
+直接部署到 Cloudflare Pages 更简单，见上方「部署到 Cloudflare Pages」。
 
 ---
 
@@ -57,91 +59,42 @@ git push -u origin main
 
 ---
 
-## 部署到 EdgeOne Pages（推荐：国内可访问 + 免费 + 不绑卡）
+## 部署到 Cloudflare Pages（推荐：自带永久免费域名）
 
-腾讯 EdgeOne Makers：**国内网络直连、永久免费额度、注册无需信用卡**。本仓库已带 `edge-functions/`（Edge Functions 边缘函数）+ `public/`（前端），前端一行不改。
+Cloudflare Pages：**自带 `*.pages.dev` 永久免费域名、无需信用卡、数据存在 D1 长期保存**。本仓库已带 `_worker.js`（边缘函数）+ `db-d1.js`（D1 数据层）+ `public/`（前端），前端一行不改。
 
 ### 第一步：把代码推到 GitHub
 （见上方「推送到 GitHub」）
 
-### 第二步：创建 EdgeOne Makers 项目
-1. 打开 https://edgeone.cloud.tencent.com/ → 左侧「Makers」→ 点击「通过导入 Git 仓库创建」
+### 第二步：创建 Cloudflare Pages 项目（全程在网页控制台，不用 wrangler CLI）
+1. 登录 https://dash.cloudflare.com/ → 左侧 **Workers 和 Pages** → **创建** → **Pages** → **连接到 Git**
 2. 授权 GitHub 后选择仓库 `travel-account-online`
-3. 构建配置：
-   - **构建命令**：留空（无需构建）
-   - **输出目录**：填 `public`（前端静态文件所在目录）
-   - 部署分支：`main`
-   - 加速区域：选「全球可用区（含中国大陆）」以保证国内直连
-4. 保存，平台自动首次部署
+3. 构建设置：
+   - **构建命令**：**留空**（无需构建）
+   - **构建输出目录**：填 `public`
+   - 框架预设：无（或 Other）
+4. 点击「保存并部署」，等待首次构建完成（几十秒）
 
-### 第三步：数据存储（无需任何配置 ✅）
-本项目使用 **EdgeOne Blob 存储**，与 KV 不同，Blob 是「即用即得」——
-**首次请求时由代码自动创建命名空间，不需要在控制台申请开通、也不需要绑定变量名、更不用人等审批**。
-所以这一步什么都不用做，部署完即可直接记账，数据自动持久化。
+### 第三步：创建并绑定 D1 数据库（关键，否则数据存不下来）
+1. Cloudflare 控制台左侧 **D1 SQL 数据库** → **创建数据库**，名称填 `travel-db`，创建后复制它的 **数据库 ID**
+2. 回到 Pages 项目 → **设置** → **Functions** → **D1 数据库绑定** → **添加绑定**
+   - 变量名称填 **`DB`**（必须与 `_worker.js` 中一致）
+   - 选择刚才创建的 `travel-db`
+3. 保存
 
-> 若之前误点了 KV 的「申请开通」正在审批中，可忽略，本方案完全不依赖 KV。
+### 第四步：重新部署
+回到 Pages 项目 → **部署** → 最新部署点 **「重新部署」**（或等下次推 GitHub 自动部署）。
+部署完成后得到**永久地址**：`https://travel-account-online.pages.dev`（子域名可改），**手机、电脑直接打开即用，无需任何 token**。
 
-### 第四步：重新部署 / 自动部署
-推送到 GitHub 的 `main` 分支会**自动触发重新部署**；也可在控制台「构建部署」手动「重新部署」。
-部署完成后得到地址：`https://<你的子域名>.edgeone.cool`（或你绑定的自定义域名），**手机任意网络（国内直连）都能用**。
-
-> 说明：首次访问可能稍慢（边缘函数冷启动），之后正常。数据全部存在 EdgeOne Blob，长期保存。
+> 说明：建表语句在首次请求时由 `_worker.js` 自动执行，无需手动建表。
 > 多人协作：APP 里新建行程 → 复制「邀请链接」发给同伴 → 同伴打开后创建自己的角色，一起记账。
+> 若 `*.pages.dev` 在你的网络下偏慢，可在 Pages 项目「自定义域」里绑定你自己的域名（CNAME 到 Cloudflare 即可）。
 
 ---
 
-## 部署到 Cloudflare（备选 · 国内访问不稳）
+## 备选：Cloudflare Workers（非 Pages）
 
-> ⚠️ `*.workers.dev` 域名在大陆常被墙或严重限速，国内手机可能无法打开。**不推荐国内使用**，仅作记录。
-
-Cloudflare Workers + D1 数据库：永久免费额度、注册无需信用卡，数据存在 D1（SQLite）长期不丢。本仓库已带 `worker.js` / `db-d1.js` / `wrangler.toml`，前端一行不改。
-
-### 准备
-
-```bash
-# 1) 安装 wrangler（Cloudflare 官方部署工具，需 Node ≥ 18）
-npm install -g wrangler
-
-# 2) 登录 Cloudflare（浏览器授权；若登录失败可用 API Token：wrangler login --api-token）
-wrangler login
-```
-
-### 创建 D1 数据库
-
-```bash
-wrangler d1 create travel-db
-```
-
-命令会输出一段配置，其中有一行 `database_id = "...."`。**复制这个 id**，粘贴到本仓库 `wrangler.toml` 里替换 `REPLACE_WITH_YOUR_D1_ID`：
-
-```toml
-[[d1_databases]]
-binding = "DB"
-database_name = "travel-db"
-database_id = "你复制的 id"
-```
-
-### 部署
-
-```bash
-wrangler deploy
-```
-
-部署完成后会得到地址，形如：
-
-```
-https://travel-account-online.<你的子域名>.workers.dev
-```
-
-> 也可在 Cloudflare 控制台给 Worker **绑定自定义域**（如 `travel.example.com`），国内访问更稳。
-
-### 使用
-
-- 手机打开上面的地址，**任意网络都能访问**（国内可直连）。
-- 新建行程 → 复制「邀请链接」发给同伴 → 同伴打开后创建自己的角色，即可一起记账。
-- 数据全部存在 Cloudflare D1，长期保存；首次访问 Worker 冷启动约 1 秒。
-
-> **免费额度**：Workers 每天 10 万次请求、D1 每天 500 万次读 / 10 万次写，个人旅行记账完全够用，且**不绑卡**。
+本仓库的 `_worker.js` 同样可以作为**普通 Cloudflare Worker** 部署（用 `wrangler deploy`，需把 `wrangler.toml` 的 `pages_build_output_dir` 改为 `main = "_worker.js"`，并填好 `database_id`）。前端静态资源用 Workers 的 Static Assets 提供。功能和 Pages 版完全一致，区别只是部署形态。一般推荐直接用上面的 **Cloudflare Pages Git 集成**（更简单、自带 `*.pages.dev` 域名）。
 
 ---
 

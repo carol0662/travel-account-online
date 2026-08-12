@@ -1,16 +1,14 @@
-# wrangler.toml — Cloudflare Workers 部署配置
-# 部署步骤见 README「Cloudflare 部署」章节。
-# 注意：database_id 需先执行 `wrangler d1 create travel-db` 获取后填入。
+# wrangler.toml — Cloudflare Pages 本地开发 / 配置参考
+# 通过 Cloudflare 控制台（Git 集成）部署时，构建配置在控制台设置：
+#   构建命令：留空   构建输出目录：public
+# D1 数据库绑定在控制台「设置 → Functions → D1 数据库绑定」里添加（绑定名 DB）。
+# 下面 database_id 仅本地开发需要，部署时可不填。
 
 name = "travel-account-online"
-main = "worker.js"
+pages_build_output_dir = "public"
 compatibility_date = "2024-11-01"
 
-# 前端静态资源（public/ 目录）
-# not_found_handling = "single-page-application" 让未匹配路径回退到 index.html
-assets = { directory = "./public", binding = "ASSETS", not_found_handling = "single-page-application" }
-
-# D1 数据库绑定（数据持久化）
+# D1 数据库绑定（数据持久化，绑定名必须为 DB，与 _worker.js 中一致）
 [[d1_databases]]
 binding = "DB"
 database_name = "travel-db"
