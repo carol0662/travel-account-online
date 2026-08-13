@@ -414,21 +414,19 @@ export async function onRequest(context) {
     });
   }
 
-  // 确保表存在（幂等）。D1 的 exec() 一次性跑多条带外键的建表语句可能整体失败，
-  // 改为逐表独立执行；建表用 IF NOT EXISTS 幂等，任何建表错误都忽略（表已存在或
-  // 外键约束告警均不影响后续查询）。初始化整体包在 try-catch 内，避免未捕获异常。
-  try {
-    const TABLES = CREATE_SQL.split(';')
-      .map(s => s.trim())
-      .filter(s => s.startsWith('CREATE TABLE'));
-    for (const stmt of TABLES) {
-      try { await env.DB.exec(stmt + ';'); }
-      catch (e) { /* 单表建表失败忽略，继续下一张 */ }
-    }
-    try { await env.DB.exec('PRAGMA foreign_keys = ON;'); }
-    catch (e) { /* PRAGMA 不支持时忽略 */ }
-  } catch (e) {
-    // 初始化失败不应阻断请求（表可能已存在）
+  // 确保表存在（幂等）。逐表独立执行，收集建表错误用于排查。
+  const initErrors = [];
+  const TABLES = CREATE_SQL.split(';')
+    .map(s => s.trim())
+    .filter(s => s.startsWith('CREATE TABLE'));
+  for (const stmt of TABLES) {
+    try { await env.DB.exec(stmt); }
+    catch (e) { initErrors.push(String(e) + ' | SQL=' + stmt.slice(0, 60)); }
+  }
+  try { await env.DB.exec('PRAGMA foreign_keys = ON;'); }
+  catch (e) { /* ignore */ }
+  if (initErrors.length) {
+    return json({ ok: false, msg: '建表失败：' + initErrors.join(' || ') }, 500);
   }
 
   try {
