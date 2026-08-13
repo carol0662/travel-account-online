@@ -1,7 +1,6 @@
-// functions/api/[[path].js — Cloudflare Pages Functions（API 路由）
+// functions/api/[[path]].js — Cloudflare Pages Functions（API 路由，自包含）
 // 匹配所有 /api/* 请求。D1 绑定名固定为 DB。
-
-import { createDb } from '../../db-d1.js';
+// 注：为规避 Pages 打包对跨目录 ESM 导入的依赖，数据层已内联于此文件。
 
 const CREATE_SQL = `
 CREATE TABLE IF NOT EXISTS trips (
@@ -36,6 +35,29 @@ CREATE TABLE IF NOT EXISTS expense_sharers (
   FOREIGN KEY (member_id)  REFERENCES members(id) ON DELETE CASCADE
 );
 `;
+
+// ---------------------------------------------------------------- 数据访问层（内联）
+function createDb(DB) {
+  async function query(sql, params = []) {
+    const r = await DB.prepare(sql).bind(...params).all();
+    return r.results || [];
+  }
+  async function get(sql, params = []) {
+    const row = await DB.prepare(sql).bind(...params).first();
+    return row || undefined;
+  }
+  async function run(sql, params = []) {
+    const r = await DB.prepare(sql).bind(...params).run();
+    return {
+      lastID: r.meta && r.meta.last_row_id != null ? Number(r.meta.last_row_id) : undefined,
+      changes: r.meta && r.meta.changes != null ? Number(r.meta.changes) : 0
+    };
+  }
+  async function exec(sql) {
+    await DB.exec(sql);
+  }
+  return { query, get, run, exec, mode: 'd1' };
+}
 
 function round2(n) {
   return Math.round((n + Number.EPSILON) * 100) / 100;
