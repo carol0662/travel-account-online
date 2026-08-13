@@ -414,17 +414,19 @@ export async function onRequest(context) {
     });
   }
 
-  // 确保表存在（幂等）。逐表独立执行，收集建表错误用于排查。
+  // 确保表存在（幂等）。D1 的 exec() 对多行 SQL 解析异常（incomplete input），
+  // 改用 prepare(stmt).run() 逐表执行——run 支持完整多行语句。
   const initErrors = [];
   const TABLES = CREATE_SQL.split(';')
     .map(s => s.trim())
     .filter(s => s.startsWith('CREATE TABLE'));
   for (const stmt of TABLES) {
-    try { await env.DB.exec(stmt); }
-    catch (e) { initErrors.push(String(e) + ' | SQL=' + stmt.slice(0, 60)); }
+    try { await env.DB.prepare(stmt).run(); }
+    catch (e) {
+      // 表已存在（IF NOT EXISTS）时忽略，其他记录
+      if (!/already exists/i.test(String(e))) initErrors.push(String(e));
+    }
   }
-  try { await env.DB.exec('PRAGMA foreign_keys = ON;'); }
-  catch (e) { /* ignore */ }
   if (initErrors.length) {
     return json({ ok: false, msg: '建表失败：' + initErrors.join(' || ') }, 500);
   }
