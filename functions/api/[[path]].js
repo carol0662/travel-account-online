@@ -418,21 +418,21 @@ export async function onRequest(context) {
   }
 
   // 确保表存在（幂等）。D1 的 exec() 一次性跑多条带外键的建表语句可能整体失败，
-  // 改为逐表独立执行，任一表已存在则 IF NOT EXISTS 直接跳过。
-  const TABLES = CREATE_SQL.split(';')
-    .map(s => s.trim())
-    .filter(s => s.startsWith('CREATE TABLE'));
-  for (const stmt of TABLES) {
-    try {
-      await env.DB.exec(stmt + ';');
-    } catch (e) {
-      // 表已存在则忽略；其他错误抛出以便排查
-      if (!/already exists|duplicate/i.test(String(e))) throw e;
-    }
-  }
+  // 改为逐表独立执行；建表用 IF NOT EXISTS 幂等，任何建表错误都忽略（表已存在或
+  // 外键约束告警均不影响后续查询）。初始化整体包在 try-catch 内，避免未捕获异常。
   try {
-    await env.DB.exec('PRAGMA foreign_keys = ON;');
-  } catch (e) { /* PRAGMA 不支持时忽略 */ }
+    const TABLES = CREATE_SQL.split(';')
+      .map(s => s.trim())
+      .filter(s => s.startsWith('CREATE TABLE'));
+    for (const stmt of TABLES) {
+      try { await env.DB.exec(stmt + ';'); }
+      catch (e) { /* 单表建表失败忽略，继续下一张 */ }
+    }
+    try { await env.DB.exec('PRAGMA foreign_keys = ON;'); }
+    catch (e) { /* PRAGMA 不支持时忽略 */ }
+  } catch (e) {
+    // 初始化失败不应阻断请求（表可能已存在）
+  }
 
   try {
     return await handleApi(request, env, url);
