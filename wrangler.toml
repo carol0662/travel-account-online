@@ -8,8 +8,10 @@ name = "travel-account-online"
 pages_build_output_dir = "public"
 compatibility_date = "2024-11-01"
 
-# D1 数据库绑定（数据持久化，绑定名必须为 DB，与 _worker.js 中一致）
-[[d1_databases]]
-binding = "DB"
-database_name = "travel-db"
-database_id = "REPLACE_WITH_YOUR_D1_ID"
+# D1 数据库绑定：已在 Cloudflare 控制台 Settings → Bindings 配置（变量名 DB → travel-db）
+# 下面配置仅本地 wrangler dev 使用；Pages 部署不需要（控制台绑定优先）。
+# 如需本地开发，先执行 `wrangler d1 create travel-db` 拿到真实 database_id 后取消注释。
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "travel-db"
+# database_id = "<从 wrangler d1 create 输出中复制的真实 UUID>"
