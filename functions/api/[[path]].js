@@ -417,13 +417,22 @@ export async function onRequest(context) {
     });
   }
 
-  // 确保表存在（幂等）
-  try {
-    await env.DB.exec(CREATE_SQL);
-    await env.DB.exec('PRAGMA foreign_keys = ON;');
-  } catch (e) {
-    // 表已存在或 PRAGMA 不支持时忽略
+  // 确保表存在（幂等）。D1 的 exec() 一次性跑多条带外键的建表语句可能整体失败，
+  // 改为逐表独立执行，任一表已存在则 IF NOT EXISTS 直接跳过。
+  const TABLES = CREATE_SQL.split(';')
+    .map(s => s.trim())
+    .filter(s => s.startsWith('CREATE TABLE'));
+  for (const stmt of TABLES) {
+    try {
+      await env.DB.exec(stmt + ';');
+    } catch (e) {
+      // 表已存在则忽略；其他错误抛出以便排查
+      if (!/already exists|duplicate/i.test(String(e))) throw e;
+    }
   }
+  try {
+    await env.DB.exec('PRAGMA foreign_keys = ON;');
+  } catch (e) { /* PRAGMA 不支持时忽略 */ }
 
   try {
     return await handleApi(request, env, url);
