@@ -2,6 +2,8 @@
 // 匹配所有 /api/* 请求。D1 绑定名固定为 DB。
 // 注：为规避 Pages 打包对跨目录 ESM 导入的依赖，数据层已内联于此文件。
 
+// 注意：D1(SQLite) 建表时 FOREIGN KEY 约束可能解析异常导致整条 CREATE 失败，
+// 故此处去掉外键约束（级联删除已在应用层 handleApi 中手动处理）。
 const CREATE_SQL = `
 CREATE TABLE IF NOT EXISTS trips (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -13,8 +15,7 @@ CREATE TABLE IF NOT EXISTS members (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   trip_id    INTEGER NOT NULL,
   name       TEXT NOT NULL,
-  created_by TEXT,
-  FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE
+  created_by TEXT
 );
 CREATE TABLE IF NOT EXISTS expenses (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -23,16 +24,12 @@ CREATE TABLE IF NOT EXISTS expenses (
   amount     REAL NOT NULL,
   pay_method TEXT NOT NULL,
   note       TEXT,
-  paid_at    TEXT NOT NULL,
-  FOREIGN KEY (trip_id)  REFERENCES trips(id) ON DELETE CASCADE,
-  FOREIGN KEY (payer_id) REFERENCES members(id)
+  paid_at    TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS expense_sharers (
   expense_id INTEGER NOT NULL,
   member_id  INTEGER NOT NULL,
-  PRIMARY KEY (expense_id, member_id),
-  FOREIGN KEY (expense_id) REFERENCES expenses(id) ON DELETE CASCADE,
-  FOREIGN KEY (member_id)  REFERENCES members(id) ON DELETE CASCADE
+  PRIMARY KEY (expense_id, member_id)
 );
 `;
 
